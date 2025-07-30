@@ -2,56 +2,98 @@ import React, { useRef, useState, useEffect } from 'react';
 import {
     View,
     Text,
-    TextInput,
-    TouchableOpacity,
     FlatList,
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
     SafeAreaView,
     useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { chat } from '../lib/api';
+import WelcomeScreen from '../components/WelcomeScreen';
+import MessageBubble from '../components/MessageBubble';
+import ChatInput from '../components/ChatInput';
+import Header from '../components/Header';
 
 type Msg = { id: string; author: 'user' | 'bot'; text: string };
 
 export default function Home() {
-    const { t } = useTranslation();
+    const { t, ready } = useTranslation(); // Add ready state
     const insets = useSafeAreaInsets();
-    const [messages, setMessages] = useState<Msg[]>([
-        { id: '1', author: 'bot', text: t('botHello') },
-    ]);
+    const [showWelcome, setShowWelcome] = useState(true);
+    const [isAppReady, setIsAppReady] = useState(false);
+    const [messages, setMessages] = useState<Msg[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const listRef = useRef<FlatList<Msg>>(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    // Initialize app when translations are ready
+    useEffect(() => {
+        if (ready) {
+            // Small delay to ensure everything is properly loaded
+            setTimeout(() => {
+                setIsAppReady(true);
+            }, 100);
+        }
+    }, [ready]);
 
     useEffect(() => {
-        listRef.current?.scrollToEnd({ animated: true });
+        if (!showWelcome && messages.length === 0) {
+            // Add welcome message when transitioning from welcome screen
+            setMessages([{ id: '1', author: 'bot', text: t('botHello') }]);
+
+            // Fade in animation
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [showWelcome, t]);
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            setTimeout(() => {
+                listRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+        }
     }, [messages]);
+
+    const handleStart = () => {
+        console.log(
+            'WelcomeScreen: handleStart called - transitioning to chat'
+        );
+        setShowWelcome(false);
+    };
 
     const send = async () => {
         const text = input.trim();
         if (!text || loading) return;
+
         const userMsg: Msg = { id: String(Date.now()), author: 'user', text };
         setMessages((m) => [...m, userMsg]);
         setInput('');
         setLoading(true);
+
         try {
             const reply = await chat(text);
             setMessages((m) => [
                 ...m,
                 { id: String(Date.now() + 1), author: 'bot', text: reply },
             ]);
-        } catch {
+        } catch (error) {
             setMessages((m) => [
                 ...m,
                 {
                     id: String(Date.now() + 2),
                     author: 'bot',
-                    text: 'სერვერთან კავშირის შეცდომა.',
+                    text: "Sorry, I'm having trouble connecting to the server. Please try again later.",
                 },
             ]);
         } finally {
@@ -59,131 +101,154 @@ export default function Home() {
         }
     };
 
+    // Show loading screen if translations are not ready or app is not ready
+    if (!ready || !isAppReady) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#0B1426' }}>
+                <LinearGradient
+                    colors={['#0B1426', '#1E293B', '#334155']}
+                    style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                    }}
+                >
+                    <ActivityIndicator size="large" color="#3B82F6" />
+                    <Text
+                        style={{
+                            color: '#FFFFFF',
+                            marginTop: 16,
+                            fontSize: 16,
+                        }}
+                    >
+                        Loading AIClinic...
+                    </Text>
+                </LinearGradient>
+            </SafeAreaView>
+        );
+    }
+
+    if (showWelcome) {
+        return <WelcomeScreen onStart={handleStart} />;
+    }
+
     const renderItem = ({ item }: { item: Msg }) => (
-        <View
-            style={{
-                paddingVertical: 6,
-                flexDirection: 'row',
-                justifyContent:
-                    item.author === 'user' ? 'flex-end' : 'flex-start',
-            }}
-        >
-            <View
-                style={{
-                    maxWidth: '80%',
-                    backgroundColor:
-                        item.author === 'user' ? '#5b6cff' : '#1b2038',
-                    borderRadius: 18,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                }}
-            >
-                <Text style={{ color: '#fff', fontSize: 15 }}>{item.text}</Text>
-            </View>
-        </View>
+        <MessageBubble message={item} />
     );
 
+    const renderTypingIndicator = () => {
+        if (!loading) return null;
+
+        return (
+            <View
+                style={{
+                    paddingVertical: 6,
+                    flexDirection: 'row',
+                    justifyContent: 'flex-start',
+                    alignItems: 'flex-end',
+                    paddingHorizontal: 16,
+                }}
+            >
+                {/* Bot Avatar */}
+                <View
+                    style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: '#3B82F6',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginRight: 8,
+                        marginBottom: 4,
+                    }}
+                >
+                    <Text style={{ fontSize: 16 }}>🏥</Text>
+                </View>
+
+                {/* Typing Container */}
+                <View
+                    style={{
+                        backgroundColor: 'rgba(17, 25, 40, 0.4)',
+                        borderRadius: 18,
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                    }}
+                >
+                    <ActivityIndicator size="small" color="#94A3B8" />
+                    <Text
+                        style={{
+                            color: '#94A3B8',
+                            fontSize: 14,
+                            marginLeft: 8,
+                        }}
+                    >
+                        AI is analyzing...
+                    </Text>
+                </View>
+            </View>
+        );
+    };
+
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#0b1020' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#0B1426' }}>
+            {/* Background Gradient */}
+            <LinearGradient
+                colors={['#0B1426', '#1E293B', '#334155']}
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                }}
+            />
+
+            {/* Header */}
+            <Header showBack={false} onBackPress={() => setShowWelcome(true)} />
+
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
-                <View style={{ flex: 1, paddingHorizontal: 14, paddingTop: 8 }}>
-                    <Text
-                        style={{
-                            color: '#8ea0ff',
-                            fontSize: 18,
-                            fontWeight: '600',
-                            textAlign: 'center',
-                            marginBottom: 6,
-                        }}
-                    >
-                        {t('title')}
-                    </Text>
-
+                <Animated.View
+                    style={{
+                        flex: 1,
+                        opacity: fadeAnim,
+                    }}
+                >
+                    {/* Messages List */}
                     <FlatList
                         ref={listRef}
                         data={messages}
                         keyExtractor={(m) => m.id}
                         renderItem={renderItem}
                         contentContainerStyle={{
-                            paddingVertical: 8,
+                            paddingVertical: 16,
                             paddingBottom: 12,
+                            flexGrow: 1,
                         }}
+                        ListFooterComponent={renderTypingIndicator}
                         onContentSizeChange={() =>
                             listRef.current?.scrollToEnd({ animated: true })
                         }
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1 }}
                     />
+                </Animated.View>
 
-                    {loading && (
-                        <View
-                            style={{
-                                alignItems: 'flex-start',
-                                marginVertical: 6,
-                            }}
-                        >
-                            <View
-                                style={{
-                                    backgroundColor: '#1b2038',
-                                    borderRadius: 18,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 8,
-                                }}
-                            >
-                                <ActivityIndicator />
-                            </View>
-                        </View>
-                    )}
-
-                    {/* INPUT BAR */}
-                    <View
-                        style={{
-                            paddingBottom: insets.bottom + 10, // ← space above home/nav bar
-                            paddingTop: 8,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
-                            backgroundColor: '#0b1020',
-                        }}
-                    >
-                        <TextInput
-                            value={input}
-                            onChangeText={setInput}
-                            placeholder={t('placeholder')}
-                            placeholderTextColor="#6b7280"
-                            style={{
-                                flex: 1,
-                                color: '#fff',
-                                backgroundColor: '#101735',
-                                borderColor: '#28305a',
-                                borderWidth: 1,
-                                borderRadius: 18,
-                                paddingHorizontal: 14,
-                                paddingVertical: 10,
-                            }}
-                            onSubmitEditing={send}
-                            returnKeyType="send"
-                        />
-                        <TouchableOpacity
-                            onPress={send}
-                            disabled={loading}
-                            style={{
-                                backgroundColor: loading
-                                    ? '#3b3f60'
-                                    : '#5b6cff',
-                                paddingHorizontal: 16,
-                                paddingVertical: 10,
-                                borderRadius: 14,
-                            }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '600' }}>
-                                {t('send')}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                {/* Chat Input */}
+                <ChatInput
+                    value={input}
+                    onChangeText={setInput}
+                    onSend={send}
+                    loading={loading}
+                    placeholder={t('placeholder')}
+                />
             </KeyboardAvoidingView>
         </SafeAreaView>
     );

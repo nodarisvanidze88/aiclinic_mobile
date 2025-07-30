@@ -2,5 +2,27 @@
     "title": "AIClinic • Demo Chat",
     "placeholder": "Type a message...",
     "send": "Send",
-    "botHello": "Hello! How can I help?"
+    "botHello": "Hello! How can I help?",
+    "welcome": {
+        "title": "AIClinic",
+        "subtitle": "Your AI-powered health assistant providing instant medical guidance and support.",
+        "whyChoose": "Why Choose AIClinic?",
+        "startChat": "Start Health Consultation",
+        "termsAcceptance": "By continuing, you agree to our Terms of Service and Privacy Policy"
+    },
+    "features": {
+        "availability": "24/7 Availability",
+        "fastAssessment": "Instant Health Assessment", 
+        "privacy": "Privacy & Security",
+        "professional": "Professional Guidance"
+    },
+    "stats": {
+        "accuracy": "Accuracy",
+        "responseTime": "Response",
+        "users": "Users"
+    },
+    "warning": {
+        "title": "Medical Disclaimer",
+        "description": "This AI assistant provides general health information only and is not a substitute for professional medical advice, diagnosis, or treatment."
+    }
 }
